@@ -7,6 +7,10 @@ parse_row <- function(fname) {
 
     ret <- list()
 
+    foo <- xpathApply(doc, "//div[@class='post-type']", xmlValue)
+    if (length(foo) != 1) stop("unable to parse title in ", fname)
+    ret[["id"]] <- regmatches(foo[[1]], regexpr("\\d{4}-\\d+", foo[[1]]))
+
     foo <- xpathApply(doc, "//h1[@class='post-heading']", xmlValue)
     if (length(foo) != 1) stop("unable to parse title in ", fname)
     ret[["title"]] <- foo[[1]] 
@@ -19,10 +23,11 @@ parse_row <- function(fname) {
     if (length(foo) < 1) stop("unable to parse authors in ", fname)
     ret[["authors"]] <- do.call(paste, c(sep=",", foo)) 
 
-    foo <- xpathApply(doc, "//div[@class='post-authors']/a", xmlGetAttr, "title")
-    if (length(foo) < 1) stop("unable to parse  in ", fname)
-    foo <- as.list(sub(",.*", "", foo))
-    ret[["authorTitles"]] <- do.call(paste, c(sep=",", foo)) 
+    foo <- xpathApply(doc, "//div[@class='post-authors']/a", 
+                      xmlGetAttr, "title", default=FALSE, 
+                      converter=function(...)TRUE)
+    if (length(foo) < 1) stop("unable to parse authors titles in ", fname)
+    ret[["authorsInternal"]] <- paste(foo, collapse=",")
 
     foo <- xpathApply(doc, "//div[@class='topic taxonomy']/a", xmlValue)
     if (length(foo) < 1) stop("unable to parse topics in ", fname)
