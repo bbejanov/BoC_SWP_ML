@@ -64,7 +64,7 @@ net <- simplify(net, edge.attr.comb=list(weight="sum", "ignore"))
 
 min_npub <- min(anodes$weight)
 max_npub <- max(anodes$weight)
-step_npub <- 7.0/(max_npub-min_npub)
+step_npub <- min(1.0, 7.0/(max_npub-min_npub))
 
 pdf_fname = file.path("plots", 
         paste0("network_", 
