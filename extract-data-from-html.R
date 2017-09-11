@@ -19,6 +19,11 @@ parse_row <- function(fname) {
     if (length(foo) < 1) stop("unable to parse authors in ", fname)
     ret[["authors"]] <- do.call(paste, c(sep=",", foo)) 
 
+    foo <- xpathApply(doc, "//div[@class='post-authors']/a", xmlGetAttr, "title")
+    if (length(foo) < 1) stop("unable to parse  in ", fname)
+    foo <- as.list(sub(",.*", "", foo))
+    ret[["authorTitles"]] <- do.call(paste, c(sep=",", foo)) 
+
     foo <- xpathApply(doc, "//div[@class='topic taxonomy']/a", xmlValue)
     if (length(foo) < 1) stop("unable to parse topics in ", fname)
     ret[["topics"]] <- do.call(paste, c(sep=",", foo)) 
@@ -40,15 +45,14 @@ parse_row <- function(fname) {
 for (kind in c("swp", "san", "sdp")) {
     cat("Parsing", kind, "...")
     data <- data.frame()
-    for (year in list.files("data") ) {
-        dirname <- file.path("data", year, kind)
+    #for (year in list.files("data") ) {
+        dirname <- file.path("data", kind)
         for( fn in list.files(dirname) ) {
             row <- parse_row(file.path(dirname, fn))
             data <- rbind(data, as.data.frame(row, stringsAsFactors=FALSE))
         }
-    }
+    #}
     cat("saving", nrow(data), "records\n")
     write.csv(data, file=file.path("data", paste(kind, "csv", sep=".")), row.names=FALSE)
 }
-
 

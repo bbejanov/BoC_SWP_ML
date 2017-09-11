@@ -1,2 +1,5 @@
 *
 !.gitignore
+!swp.csv
+!san.csv
+!sdp.csv
