@@ -27,8 +27,19 @@ make_corp <- function(x) {
     corp <- tm_map(corp, function(x) removeWords(x, stopwords()))
     return(corp)
 }
-corp <- make_corp(data$title)
+corp <- make_corp(data$abstract)
 wordcloud(corp[ data$year==2010 ], max.words=50)
+
+for ( y in 2010:2017 ) {
+    pdf_name = file.path("plots", "wordcloud", 
+                         paste0("wordcloud_", y, ".pdf"))
+    pdf(file=pdf_name, width=6, height=6)
+    wordcloud(corp[data$year==y], max.words=75, random.order=FALSE)
+    text(x=0.0, y=0.95, labels=y, pos=4, cex=3.5, col="brown")
+    graphics.off()
+}
+
+
 
 ##
 # compare two years
@@ -47,6 +58,16 @@ tdm <- TermDocumentMatrix(corp.byYear)
 tdm <- as.matrix(tdm)  
 colnames(tdm) <- c(as.character(2010:2017))
 comparison.cloud(tdm[,3:4], max.words=50, random.order=FALSE)
+
+for (i in 1:7) {
+    pdf_name = file.path("plots", "wordcloud", 
+                         paste0("compare_", colnames(tdm)[i], "_", colnames(tdm)[1+i], ".pdf"))
+    pdf(file=pdf_name, width=6, height=6)
+    comparison.cloud(tdm[,c(i,i+1)], max.words=75, random.order=FALSE)
+    graphics.off()
+}
+
+
 
 wordcloud(corp.byYear, max.words=100, random.order=FALSE)
 
