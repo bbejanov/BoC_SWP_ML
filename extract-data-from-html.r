@@ -40,6 +40,10 @@ parse_row <- function(fname) {
         ret[["jel"]] <- do.call(paste, c(sep=",", foo)) 
     }
 
+    foo <- xpathApply(doc, "//div[contains(@class,'post-formats')]/a", xmlGetAttr, "href")
+    if (length(foo) != 1) stop("unable to parse the pdf link in ", fname)
+    ret[["pdf"]] <- trimws(foo[[1]])
+
     foo <- xpathApply(doc, "//span[@class='post-content']", xmlValue)
     if (length(foo) != 1) stop("unable to parse abstract in ", fname)
     ret[["abstract"]] <- trimws(strsplit(trimws(foo[[1]]), "\\n|\\r")[[1]][[1]]) 
@@ -50,13 +54,11 @@ parse_row <- function(fname) {
 for (kind in c("swp", "san", "sdp")) {
     cat("Parsing", kind, "...")
     data <- data.frame()
-    #for (year in list.files("data") ) {
         dirname <- file.path("data", kind)
         for( fn in list.files(dirname) ) {
             row <- parse_row(file.path(dirname, fn))
             data <- rbind(data, as.data.frame(row, stringsAsFactors=FALSE))
         }
-    #}
     cat("saving", nrow(data), "records\n")
     write.csv(data, file=file.path("data", paste(kind, "csv", sep=".")), row.names=FALSE)
 }
