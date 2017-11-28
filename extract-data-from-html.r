@@ -21,7 +21,7 @@ parse_row <- function(fname) {
 
     foo <- xpathApply(doc, "//div[@class='post-authors']/a", xmlValue)
     if (length(foo) < 1) stop("unable to parse authors in ", fname)
-    ret[["authors"]] <- do.call(paste, c(sep=",", foo)) 
+    ret[["authors"]] <- do.call(paste, c(sep="\\|", foo)) 
 
     foo <- xpathApply(doc, "//div[@class='post-authors']/a", 
                       xmlGetAttr, "title", default=FALSE, 
@@ -40,7 +40,8 @@ parse_row <- function(fname) {
         ret[["jel"]] <- do.call(paste, c(sep=",", foo)) 
     }
 
-    foo <- xpathApply(doc, "//div[contains(@class,'post-formats')]/a", xmlGetAttr, "href")
+    foo <- xpathApply(doc, "//div[contains(@class,'post-formats')]/a", 
+                      xmlGetAttr, "href")
     if (length(foo) != 1) stop("unable to parse the pdf link in ", fname)
     ret[["pdf"]] <- trimws(foo[[1]])
 
@@ -51,8 +52,45 @@ parse_row <- function(fname) {
     return( ret )
 }
 
+get_affil <- function(row, kind) {
+    # download the pdf file (if not already downloaded)   
+    pdffile <- file.path("data", "pdf", kind, basename(row$pdf))
+    if (file.exists(pdffile) == FALSE) 
+        download.file(row$pdf, pdffile, quiet=TRUE)
+    stopifnot(file.exists(pdffile))
+    cat(basename(pdffile), ":\n")
+    #extract the text from page 2 - the title page with authors' info
+    pf <- pipe(paste("pdftotext -raw -f 2 -l 2", pdffile, "-"))
+    pdftext <- readLines(pf, warn=FALSE)
+    close(pf)
+    # how many authors?
+    authors <- strsplit(row$authors, "\\|")[[1]]
+    if(length(authors)==1) {
+        all_text <- paste(pdftext, collapse=",")
+        pattern <- paste0("^.*", authors[[1]], "\\s*,(.*),\\s*Bank of Canada.*$")
+        stopifnot(grepl(pattern, all_text))
+        row$affils <- sub(pattern, "\\1", all_text)
+        
+    cat(authors[[1]], "->", row$affils, "\n")
+
+    } else {
+    }
+
+    return(row)
+}
+
+if(FALSE) {
+    kind <- "swp"
+    for(fn in list.files(file.path("data", kind))) 
+        foo <- get_affil(parse_row(file.path("data", kind, fn)),kind)
+}
+
+
+if(FALSE)
 for (kind in c("swp", "san", "sdp")) {
     cat("Parsing", kind, "...")
+    if (dir.exists(file.path("data", "pdf", kind)) == FALSE)
+        dir.create(file.path("data", "pdf", kind), recursive=TRUE)
     data <- data.frame()
         dirname <- file.path("data", kind)
         for( fn in list.files(dirname) ) {
