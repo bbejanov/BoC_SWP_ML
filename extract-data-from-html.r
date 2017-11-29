@@ -23,11 +23,11 @@ parse_row <- function(fname) {
     if (length(foo) < 1) stop("unable to parse authors in ", fname)
     ret[["authors"]] <- do.call(paste, c(sep="|", foo)) 
 
-    foo <- xpathApply(doc, "//div[@class='post-authors']/a", 
-                      xmlGetAttr, "title", default=FALSE, 
-                      converter=function(...)TRUE)
-    if (length(foo) < 1) stop("unable to parse authors titles in ", fname)
-    ret[["authorsInternal"]] <- paste(foo, collapse=",")
+    #foo <- xpathApply(doc, "//div[@class='post-authors']/a", 
+    #                  xmlGetAttr, "title", default=FALSE, 
+    #                  converter=function(...)TRUE)
+    #if (length(foo) < 1) stop("unable to parse authors titles in ", fname)
+    #ret[["authorsInternal"]] <- paste(foo, collapse=",")
 
     foo <- xpathApply(doc, "//div[@class='topic taxonomy']/a", xmlValue)
     if (length(foo) < 1) stop("unable to parse topics in ", fname)
@@ -52,6 +52,43 @@ parse_row <- function(fname) {
     return( ret )
 }
 
+parse_one_author <- function(row, kind, author, pdftext) {
+    BoCE <- "Bank of Canada"
+    BoCF <- "Banque du Canada"
+    if (kind=="swp" && author == "Warren E. Weber") {
+        row$language <- "English"
+        row$affils <- paste("BoC", "Visiting Scholar at Currency Department")
+    } else if (kind=="swp" && row$id == "2012-17") {
+        row$language <- "English"
+        row$affils <- paste("BoC", "Funds Management and Banking Department")
+    } else if (kind=="sdp" && row$id == "2014-6") {
+        row$language <- "English"
+        row$affils <- paste("BoC", "Governor")
+    } else {
+        all_text <- iconv(paste(pdftext, collapse=","),
+                          to="ASCII//TRANSLIT")
+        fuzzy_author_pattern <- iconv(gsub("\\s+", " ?\\\\S* ?", author),
+                                      to="ASCII//TRANSLIT")
+        # note: (.*?) - the ? means shortest match
+        pattern <- paste0("^.*", fuzzy_author_pattern, 
+                          "\\s*,(.*?),\\s*", BoCE, ".*$")
+        if (grepl(pattern, all_text)) {
+            row$language <- "English"
+        } else {
+            pattern <- paste0("^.*", fuzzy_author_pattern,
+                              "\\s*,(.*?),\\s*", BoCF, ".*$")
+            if (grepl(pattern, all_text)) {
+                row$language <- "Français"
+            } else {
+                stop("pattern does not match")
+            }
+        }
+
+        row$affils <- paste("BoC", trimws(sub(pattern, "\\1", all_text)))
+    }
+    return(row)
+}
+
 get_affil <- function(row, kind) {
     # download the pdf file (if not already downloaded)   
     pdffile <- file.path("data", "pdf", kind, basename(row$pdf))
@@ -66,18 +103,56 @@ get_affil <- function(row, kind) {
     # how many authors?
     authors <- strsplit(row$authors, "\\|")[[1]]
     if(length(authors)==1) {
+        row <- parse_one_author(row, kind, authors[[1]], pdftext)
+        # cat(row$language, "  ", authors[[1]], "->",  row$affils, "\n")
+    } else if (length(authors) == 2) {
+        cat("    ", row$id)
+
+        BoCE <- "Bank of Canada"
+        BoCF <- "Banque du Canada"
+
         all_text <- iconv(paste(pdftext, collapse=","),
                           to="ASCII//TRANSLIT")
-        fuzzy_author_pattern <- iconv(gsub("\\s+", " ?\\\\S* ?", authors[[1]]),
+        fuzzy_author_pattern <- iconv(gsub("\\s+", " ?\\\\S* ?", authors),
                                       to="ASCII//TRANSLIT")
         # note: (.*?) - the ? means shortest match
-        pattern <- paste0("^.*", fuzzy_author_pattern, 
-                          "\\s*,(.*?),\\s*Bank of Canada.*$")
-        stopifnot(grepl(pattern, all_text))
-        row$affils <- paste("BoC", trimws(sub(pattern, "\\1", all_text)))
+        markers_pattern <- paste0("^.*", 
+                          fuzzy_author_pattern[[1]],
+                          "(\\d?),? ?and ?,?",
+                          fuzzy_author_pattern[[2]],
+                          "(\\d?).*$")
+        stopifnot(grepl(markers_pattern, all_text))
+        markers <- strsplit(sub(markers_pattern, "\\1 | \\2", all_text), "\\|")[[1]]
+        markers <- lapply(markers, trimws)
         
-    cat(authors[[1]], "->", row$affils, "\n")
+        if (all(nchar(markers)==0)) {
+            # two authors from the Bank from the same department
+            dept_pattern <- paste0("^.*", 
+                          fuzzy_author_pattern[[1]],
+                          "\\d? and ",
+                          fuzzy_author_pattern[[2]],
+                          "\\d?\\s*,(.*?),\\s*", BoCE, ".*$")
+            if (grepl(dept_pattern, all_text)) {
+                row$language <- "English"
+            } else {
+                dept_pattern <- sub(BoCE, BoCF, dept_pattern)
+                if (grepl(pattern, all_text)) {
+                    row$language <- "Français"
+                } else {
+                    stop("pattern does not match")
+                }
+            }
 
+            dept <- paste("BoC", trimws(sub(dept_pattern, "\\1", all_text)))
+            affils <- c(dept, dept)
+        } else {
+            stop("2")
+        }
+
+        cat("\t", row$language, "\n")
+        row$affils <- paste(affils, collapse="|")
+        for(i in seq_along(authors)) 
+            cat("\t", authors[[i]], "->", affils[[i]], "\n")
     } else {
     }
 
