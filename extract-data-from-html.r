@@ -21,7 +21,7 @@ parse_row <- function(fname) {
 
     foo <- xpathApply(doc, "//div[@class='post-authors']/a", xmlValue)
     if (length(foo) < 1) stop("unable to parse authors in ", fname)
-    ret[["authors"]] <- do.call(paste, c(sep="\\|", foo)) 
+    ret[["authors"]] <- do.call(paste, c(sep="|", foo)) 
 
     foo <- xpathApply(doc, "//div[@class='post-authors']/a", 
                       xmlGetAttr, "title", default=FALSE, 
@@ -60,16 +60,21 @@ get_affil <- function(row, kind) {
     stopifnot(file.exists(pdffile))
     cat(basename(pdffile), ":\n")
     #extract the text from page 2 - the title page with authors' info
-    pf <- pipe(paste("pdftotext -raw -f 2 -l 2", pdffile, "-"))
+    pf <- pipe(paste("pdftotext -raw -f 2 -l 2 2>/dev/null", pdffile, "-"))
     pdftext <- readLines(pf, warn=FALSE)
     close(pf)
     # how many authors?
     authors <- strsplit(row$authors, "\\|")[[1]]
     if(length(authors)==1) {
-        all_text <- paste(pdftext, collapse=",")
-        pattern <- paste0("^.*", authors[[1]], "\\s*,(.*),\\s*Bank of Canada.*$")
+        all_text <- iconv(paste(pdftext, collapse=","),
+                          to="ASCII//TRANSLIT")
+        fuzzy_author_pattern <- iconv(gsub("\\s+", " ?\\\\S* ?", authors[[1]]),
+                                      to="ASCII//TRANSLIT")
+        # note: (.*?) - the ? means shortest match
+        pattern <- paste0("^.*", fuzzy_author_pattern, 
+                          "\\s*,(.*?),\\s*Bank of Canada.*$")
         stopifnot(grepl(pattern, all_text))
-        row$affils <- sub(pattern, "\\1", all_text)
+        row$affils <- paste("BoC", trimws(sub(pattern, "\\1", all_text)))
         
     cat(authors[[1]], "->", row$affils, "\n")
 
