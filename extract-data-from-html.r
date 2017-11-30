@@ -60,7 +60,7 @@ fuzzy_author_pattern <- function(authors) {
 markers_pattern <- function(authors) {
     fap <- fuzzy_author_pattern(authors)
     pat1 <- paste(c(fap,""), collapse=",?(\\d?)\\s?(?:,|and)*\\s?")
-    pat <- paste0("^.*by,", pat1, ".*$")
+    pat <- paste0("^.*", pat1, ".*$")
     return(pat)
 }
 
@@ -70,21 +70,28 @@ parse_affil <- function(row, kind, authors, pdftext) {
     BoCF <- "Banque du Canada"
 
     # Typos in names
-    if(kind=="swp" && row$id=="2016-60") 
-        authors[[1]] <- "Teodoara Paligorova"
-    if(kind=="swp" && row$id=="2017-6") 
-        authors[[2]] <- "Josef Schoth"
-    if(kind=="swp" && row$id=="2010-13") 
-        authors[[2]] <- "Yinan Zhang"
-    if(kind=="swp" && row$id=="2015-8")
-        authors[[1]] <- "Jose Garralda"
+    if (kind=="swp") 
+        if(row$id=="2016-60") 
+            authors[[1]] <- "Teodoara Paligorova"
+        else if(row$id=="2017-6") 
+            authors[[2]] <- "Josef Schoth"
+        else if(row$id=="2010-13") 
+            authors[[2]] <- "Yinan Zhang"
+        else if(row$id=="2015-8")
+            authors[[1]] <- "Jose Garralda"
+        else if(row$id=="2015-42")
+            authors[[3]] <- "Jeffrey Harris"
+        else if (row$id == "2017-43") 
+            authors[c(2,3)] <- c("Geoffrey Dunbar", "Q. Rallye Shen")
+        else if (row$id=="2015-46") # authors in different order
+            authors <- authors[c(2,4,1,3)]
+
 
     # Special cases
     if (kind=="swp" && any(authors == "Warren E. Weber")) {
         row$language <- "English"
         affils <- paste("BoC", "Visiting Scholar at Currency Department")
         if (length(authors) > 1) { 
-            cat(row$id)
             stop("The case of Warren et al.")
         }
     } else if (kind=="swp" && row$id == "2012-17") {
@@ -105,7 +112,7 @@ parse_affil <- function(row, kind, authors, pdftext) {
         # General case
         all_text <- iconv(paste(pdftext, collapse=","),
                           to="ASCII//TRANSLIT")
-        mp <- markers_pattern(authors)
+        mp <- iconv(markers_pattern(authors), to="ASCII//TRANSLIT")
         stopifnot(grepl(mp, all_text))
     
         repl <- paste(" \\",seq_along(authors), sep="", collapse="|")
@@ -130,35 +137,43 @@ parse_affil <- function(row, kind, authors, pdftext) {
             }
             dept <- paste("BoC", trimws(sub(dept_pat, "\\1", all_text))) 
             affils <- rep(dept, length(authors))
-        } else if( all(nchar(markers))==1) {
+        } else if (all(nchar(markers))==1) {
             row$language <- "English"
+            # we reuse the mp pattern, but we need to 
+            # make the marker groups non-capturing and 
+            # strip the .*$ at the end
+            amp <- sub("\\.\\*\\$", "", gsub("\\(\\\\d\\?\\)", "(?:\\\\d?)", mp))
             affils <- rep(NA, length(authors))
             for(id in seq_along(markers)) {
-                aff_pattern <- paste0(",", markers[[id]], "([^ ,][^,]*?),([^,]*?),")
+                ind <- markers == markers[[id]]
+                aff_pattern <- paste0(",", markers[[id]], 
+                                      "(?: *Corresponding author: *)?",
+                                      "([^,]*?),([^,]*?),")
                 stopifnot(grepl(aff_pattern, all_text))
-                aff <- sub(paste0("^.*",aff_pattern,".*$"), 
-                           "\\1 | \\2", all_text)
+                ap <- paste0(amp, ".*", aff_pattern, ".*$")
+                aff <- sub(ap, " \\1| \\2", all_text)
                 aff <- trimws(strsplit(aff, "\\|")[[1]])
                 if (aff[[2]]==BoCE) {
                     row$language <- "English"
-                    affils[[id]] <- paste("BoC", aff[[1]])
+                    affils[ind] <- paste("BoC", aff[[1]])
                 } else if (aff[[2]] == BoCF) {
                     row$language <- "Français"
-                    affils[[id]] <- paste("BoC", aff[[1]])
+                    affils[ind] <- paste("BoC", aff[[1]])
+                } else if (grepl("(university|bank)", aff[[1]], ignore.case=TRUE)) {
+                    affils[ind] <- aff[[1]]
                 } else {
-                    affils[[id]] <- paste(aff, collapse=",")
+                    affils[ind] <- paste(aff, collapse=", ")
                 }
             }
         } else {
-            cat(row$id, "\n")
             stop("Cannot handle case of some markers but not all")
         }
     }
     
-    cat("\t", row$language, "\n")
+    cat("  ", row$language, "\n")
     row$affils <- paste(affils, collapse="|")
     for(i in seq_along(authors)) 
-        cat("\t", authors[[i]], "->", affils[[i]], "\n")
+        cat("    ", authors[[i]], "->", affils[[i]], "\n")
 
     return(row)
 
@@ -200,17 +215,22 @@ parse_affil <- function(row, kind, authors, pdftext) {
 #     return(row)
 # }
  
-get_affil <- function(row, kind) {
+get_pdftext <- function(row, kind) {
     # download the pdf file (if not already downloaded)   
     pdffile <- file.path("data", "pdf", kind, basename(row$pdf))
     if (file.exists(pdffile) == FALSE) 
         download.file(row$pdf, pdffile, quiet=TRUE)
     stopifnot(file.exists(pdffile))
-    cat(basename(pdffile), ":\n")
     #extract the text from page 2 - the title page with authors' info
     pf <- pipe(paste("pdftotext -raw -f 2 -l 2 2>/dev/null", pdffile, "-"))
     pdftext <- readLines(pf, warn=FALSE)
     close(pf)
+    return(pdftext)
+}
+
+get_affil <- function(row, kind) {
+    cat(row$id, ":\n")
+    pdftext <- get_pdftext(row, kind)
     # how many authors?
     authors <- strsplit(row$authors, "\\|")[[1]]
 
