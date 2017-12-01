@@ -25,13 +25,13 @@ parse_row <- function(fname) {
 
     foo <- xpathApply(doc, "//div[@class='topic taxonomy']/a", xmlValue)
     if (length(foo) < 1) stop("unable to parse topics in ", fname)
-    ret[["topics"]] <- do.call(paste, c(sep=",", foo)) 
+    ret[["topics"]] <- do.call(paste, c(sep="|", foo)) 
 
     foo <- xpathApply(doc, "//div[@class='jel taxonomy']/a", xmlValue)
     if (length(foo) < 1) {
         ret[["jel"]] <- ""
     } else {
-        ret[["jel"]] <- do.call(paste, c(sep=",", foo)) 
+        ret[["jel"]] <- do.call(paste, c(sep="|", foo)) 
     }
 
     foo <- xpathApply(doc, "//div[contains(@class,'post-formats')]/a", 
@@ -98,9 +98,28 @@ parse_affil <- function(row, kind, authors, pdftext) {
         row$language <- "English"
         affils <- paste("BoC", "Visiting Scholar at Currency Department")
         if (length(authors) > 1) { 
-            affils <- c("BoC Currency Department", "BoC Funds Management and Banking Department", 
+            affils <- c("BoC Currency Department", 
+                        "BoC Funds Management and Banking Department", 
                         "BoC Visiting Scholar at Currency Department")
         }
+    } else if (kind=="swp" && row$id == "2013-36") {
+        row$language <- "English"
+        affils <- c("BoC Currency Department",
+                    "BoC Financial Markets Department",
+                    "Department of Economics, Lakehead University") 
+    } else if (kind=="swp" && row$id == "2015-21") {
+        row$language <- "English"
+        affils <- c("BoC Executive and Legal Services",
+                    "BoC International Economic Analysis Department",
+                    "BoC Canadian Economic Analysis Department") 
+    } else if (kind=="swp" && row$id == "2016-33") {
+        row$language <- "English"
+        affils <- c("BoC Funds Management and Banking Department",
+                    "University of Bern") 
+    } else if (kind=="swp" && row$id == "2016-2") {
+        row$language <- "English"
+        affils <- c("McMaster University",
+                    "BoC Canadian Economic Analysis Department") 
     } else if (kind=="swp" && row$id == "2012-17") {
         row$language <- "English"
         affils <- paste("BoC", "Funds Management and Banking Department")
@@ -111,20 +130,27 @@ parse_affil <- function(row, kind, authors, pdftext) {
         row$language <- "English"
         affils <- c("European Central Bank", 
                     "BoC Economic and Financial Research")
-    } else if (kind=="swp" && any(row$id==c("2016-32","2016-36"))) {
+    } else if (kind=="swp" && row$id=="2016-32") {
         row$language <- "English"
         affils <- c("BoC International Economic Analysis Department",
                     "Departemnt of Economics, University of Notre Dame and NBER")
+    } else if (kind=="swp" && row$id=="2016-36") {
+        row$language <- "English"
+        affils <- c("Bank of Japan",
+                    "BoC Financial Stability Department")
     } else if (kind=="swp" && row$id=="2017-47") {
         row$language <- "English"
-        affils <- c("BoC Currency Department", "BoC Currency Department", 
+        affils <- c("BoC Currency Department", 
+                    "BoC Currency Department", 
                     "ozshy@ozshy.com")
     } else if (kind=="swp" && row$id=="2013-37") {
         row$language <- "English"
-        affils <- c("BoC Financial Markets Department", "BoC Financial Markets Department")
+        affils <- c("BoC Financial Markets Department", 
+                    "BoC Financial Markets Department")
     } else if (kind=="swp" && row$id=="2015-38") {  
         row$language <- "English"
-        affils <- rep("BoC International Economic Analysis Department", length(authors))
+        affils <- rep("BoC International Economic Analysis Department", 
+                      length(authors))
     } else {
         # General case
         all_text <- iconv(paste(pdftext, collapse=","),
@@ -171,11 +197,14 @@ parse_affil <- function(row, kind, authors, pdftext) {
             affils <- sub("Corresponding author:?", "", affils, ignore.case=TRUE)
             affils <- strsplit(affils, ",")
             affils <- lapply(affils, trimws)
+            affils <- lapply(affils, function(a) a[nchar(a)>0])
             laffils <- sapply(affils, length)
-            if(all(laffils[-num]==1) && laffils[[num]] > 1 && affils[[num]][[2]] == BoCE) {
+            if(all(laffils[-num]==1) && laffils[[num]] > 1 
+               && affils[[num]][[2]] == BoCE) {
                 row$language <- "English"
                 affils <- lapply(affils, function(a) paste("BoC", a[[1]]))
-            } else if (all(laffils[-num]==1) && laffils[[num]] > 1 && affils[[num]][[2]] == BoCF) {
+            } else if (all(laffils[-num]==1) && laffils[[num]] > 1 
+                       && affils[[num]][[2]] == BoCF) {
                 row$language <- "Français"
                 affils <- lapply(affils, function(a) paste("BoC", a[[1]]))
             } else {
@@ -187,6 +216,7 @@ parse_affil <- function(row, kind, authors, pdftext) {
                         row$language <- "Français"
                         return(paste("BoC", a[[1]]))
                     } else if (grepl(paste("university","universite",
+                                           "universidad",
                                            "bank","banque","fund","board",
                                            "bureau", "statistics canada", 
                                            "\\w+ school of economics",
@@ -246,8 +276,9 @@ if(FALSE) {
 }
 
 
-if(FALSE)
-for (kind in c("swp", "san", "sdp")) {
+#if(FALSE)
+# for (kind in c("swp", "san", "sdp")) {
+for (kind in c("swp")) {
     cat("Parsing", kind, "...")
     if (dir.exists(file.path("data", "pdf", kind)) == FALSE)
         dir.create(file.path("data", "pdf", kind), recursive=TRUE)
@@ -255,9 +286,11 @@ for (kind in c("swp", "san", "sdp")) {
         dirname <- file.path("data", kind)
         for( fn in list.files(dirname) ) {
             row <- parse_row(file.path(dirname, fn))
+            row <- get_affil(row, kind)
             data <- rbind(data, as.data.frame(row, stringsAsFactors=FALSE))
         }
     cat("saving", nrow(data), "records\n")
-    write.csv(data, file=file.path("data", paste(kind, "csv", sep=".")), row.names=FALSE)
+    write.csv(data, file=file.path("data", paste(kind, "csv", sep=".")), 
+              row.names=FALSE)
 }
 
