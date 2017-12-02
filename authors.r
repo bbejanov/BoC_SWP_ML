@@ -10,6 +10,34 @@ for (x in 2016:2010) {
    all.cases <- c(all.cases, paste( as.character(seq(x,2017)),collapse="|"))
 }
 
+affil.as.factor <- function (affil) {
+    .do <- function(val) {
+        if (grepl("^BoC ", val)) {
+            val <- sub("^BoC ", "", val)
+            return(switch(val, 
+                "Adviser to the Governor"="ELS",
+                "Canadian Economic Analysis Department"="CEA",
+                "Currency Department"="CUR",
+                "Executive and Legal Services"="ELS",
+                "Financial Markets Department"="FMD",
+                "Financial Stability Department"="FSD",
+                "Funds Management and Banking Department"="FBD",
+                "International Economic Analysis Department"="INT",
+                "Visiting Scholar at Currency Department"="CUR",
+                "Governor of Bank of Canada"="ELS",
+                stop("new department", val)))
+        } else {
+            return ("EXT")
+        }
+    }
+    foo <- vapply(affil, .do, "", USE.NAMES=FALSE)
+    foo <- factor(foo, 
+                  levels=c("ELS", "CEA", "INT", "FSD", "FMD", 
+                           "FBD", "CUR", "EXT"),
+                  ordered=TRUE)
+    return (foo)
+}
+
 for (year in all.cases) {
 
     fname_suffix <- do.call(paste, c(strsplit(year, "\\|"), collapse="_"))
@@ -18,7 +46,11 @@ for (year in all.cases) {
     authors <- data %>%
         filter(grepl(year, .$date)) %>%
         group_by(id) %>%
-        do(data.frame(author=strsplit(.$authors, ",")[[1]], stringsAsFactors=FALSE))
+        do(data.frame(author=strsplit(.$authors, "\\|")[[1]], 
+                      affil=strsplit(.$affils, "\\|")[[1]],
+                      stringsAsFactors=FALSE)) %>%
+        ungroup() %>%
+        mutate(affil=affil.as.factor(.$affil))
         
     
     ###################
