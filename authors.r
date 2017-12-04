@@ -80,7 +80,17 @@ for (year in all.cases) {
     #
 
     # nodes of graph are authors
-    anodes <- mutate(adata, weight=npub, npub=NULL)
+    anodes <- authors %>% 
+        group_by(author, affil) %>%
+        summarize(weight=n()) %>%
+        ungroup() %>%
+        mutate(name=paste(.$author, .$affil, sep=","),
+               type=as.numeric(.$affil)) %>%
+        select(name, weight, type)
+
+    ext_nodes <- data.frame(name=levels(authors$affil), weight=0, type=0)
+    ext_nodes <- filter(ext_nodes, name!="EXT")
+    ext_nodes <- rbind(anodes, ext_nodes)
 
     all.pairs <- function(vals) {
         if (length(vals) < 2) 
@@ -89,13 +99,31 @@ for (year in all.cases) {
         return(data.frame(a1=tmp[1,], a2=tmp[2,], stringsAsFactors=FALSE))
     }
 
-    aedges <- data %>% filter(grepl(year, .$date)) %>%
-                       group_by(id) %>%
-                       do(all.pairs(strsplit(.$authors, ",")[[1]])) %>%
-                       ungroup() %>% select(a1, a2)
-    net <- graph_from_data_frame(aedges, vertices=anodes, directed=FALSE)
+    aedges <- authors %>% 
+        group_by(id) %>% 
+        do(all.pairs(paste(.$author,.$affil,sep=","))) %>% 
+        ungroup() %>% 
+        select(a1,a2,id)
+       
+    ext_edges <- authors %>% 
+        filter(affil != "EXT") %>% 
+        transmute(a1=affil, a2=paste(author, affil, sep=",")) %>%
+        distinct() %>%
+        mutate(id="0")
+
+    ext_edges <- rbind(aedges, ext_edges)
+
+    net <- graph_from_data_frame(ext_edges, vertices=ext_nodes, directed=FALSE)
     E(net)$weight <- 1
     net <- simplify(net, edge.attr.comb=list(weight="sum", "ignore"))
+    E(net)$type <- 1
+    for (dep in levels(authors$affil)) {
+        vind <- match(dep, V(net)$name)
+        if (is.na(vind) == FALSE) {
+            E(net)[from(vind)]$type <- 0
+        }
+    }
+
 
 
     #V(net)$weight <- unlist(vapply( V(net)$name, 
@@ -114,15 +142,47 @@ for (year in all.cases) {
          vertex.label.cex=.4,
          vertex.label=sapply(V(net)$weight, function(x) ifelse(x>1,x,"")),
          vertex.size=3+(V(net)$weight-min_npub)*step_npub,
+         vertex.col=V(net)$type,
          edge.curved=.2, 
          edge.width=E(net)$weight*2,
          edge.label=sapply(E(net)$weight, function(x) ifelse(x>1, x, "")),
          edge.label.cex=.7,
-         main=year
+         main=year,
     )
     graphics.off()
     cat("done\n")
 
 } 
+
+aff_colors <- c(ELS="black", 
+                CEA="red", 
+                INT="blue", 
+                FSD="green", 
+                FMD="cyan", 
+                FBD="orange", 
+                CUR="yellow", 
+                EXT="grey")
+
+plot_net <- function(net, ...) {
+    min_npub <- min(V(net)$weight)
+    max_npub <- max(V(net)$weight)
+    step_npub <- min(1.0, 7.0/(max_npub-min_npub))
+
+    plot(net,
+         vertex.label.cex=.8,
+         vertex.label=sapply(V(net)$weight, function(x) ifelse(x>1,x,"")),
+         vertex.shape=ifelse(V(net)$type==0, "none", "circle"),
+         vertex.size=(6+(V(net)$weight-min_npub)*step_npub),
+         vertex.color=ifelse(V(net)$type>0, aff_colors[V(net)$type], "white"),
+         edge.curved=.2,
+         edge.width=E(net)$weight*3*E(net)$type,
+         edge.label=sapply(E(net)$weight, function(x) ifelse(x>1, x, "")),
+         edge.label.cex=.7,
+         main=year, 
+         ...)
+}
+
+plot_net(net, layout=layout_(net, with_graphopt(charge=.05, spring.constant=10, niter=5000)))
+
 
 
