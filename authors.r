@@ -15,16 +15,19 @@ affil.as.factor <- function (affil) {
         if (grepl("^BoC ", val)) {
             val <- sub("^BoC ", "", val)
             return(switch(val, 
-                "Adviser to the Governor"="ELS",
+                "Adviser to the Governor"="OTH",
                 "Canadian Economic Analysis Department"="CEA",
                 "Currency Department"="CUR",
-                "Executive and Legal Services"="ELS",
+                "Executive and Legal Services"="OTH",
                 "Financial Markets Department"="FMD",
                 "Financial Stability Department"="FSD",
                 "Funds Management and Banking Department"="FBD",
                 "International Economic Analysis Department"="INT",
+                "International Economic Analysis"="INT",
                 "Visiting Scholar at Currency Department"="CUR",
-                "Governor of Bank of Canada"="ELS",
+                "Governor of Bank of Canada"="OTH",
+                "Economic and Financial Research"="OTH",
+                "Communications Department"="OTH",
                 stop("new department", val)))
         } else {
             return ("EXT")
@@ -32,14 +35,46 @@ affil.as.factor <- function (affil) {
     }
     foo <- vapply(affil, .do, "", USE.NAMES=FALSE)
     foo <- factor(foo, 
-                  levels=c("ELS", "CEA", "INT", "FSD", "FMD", 
+                  levels=c("OTH", "CEA", "INT", "FSD", "FMD", 
                            "FBD", "CUR", "EXT"),
                   ordered=TRUE)
     return (foo)
 }
 
-for (year in all.cases) {
+aff_colors <- c(OTH="black", 
+                CEA="red", 
+                INT="blue", 
+                FSD="green", 
+                FMD="cyan", 
+                FBD="orange", 
+                CUR="yellow", 
+                EXT="grey80")
 
+plot_net <- function(net, ...) {
+    min_npub <- min(V(net)$weight)
+    max_npub <- max(V(net)$weight)
+    step_npub <- min(1.0, 7.0/(max_npub-min_npub))
+
+    plot(net,
+         vertex.label.cex=.8,
+         vertex.label=sapply(V(net)$weight, function(x) ifelse(x>1,x,"")),
+         vertex.label.color="white",
+         vertex.shape=ifelse(V(net)$type==0, "none", "circle"),
+         vertex.size=(6+(V(net)$weight-min_npub)*step_npub),
+         vertex.color=ifelse(V(net)$type>0, aff_colors[V(net)$type], "white"),
+         edge.curved=.2,
+         edge.width=E(net)$weight*3*E(net)$type,
+         edge.label=sapply(E(net)$weight, function(x) ifelse(x>1, x, "")),
+         edge.label.cex=.7,
+         main=year, 
+         ...)
+}
+
+#for (year in all.cases) {
+if(!exists("year")) 
+    year <- "2014"
+
+if(TRUE) {
     fname_suffix <- do.call(paste, c(strsplit(year, "\\|"), collapse="_"))
     
     # authors in the given year
@@ -56,25 +91,25 @@ for (year in all.cases) {
     ###################
     ###   some summary statistics  
     #
-
-    # number of authors for each paper
-    pdata <- authors %>% group_by(id) %>% summarize(nauth=n())
-    
-    qp <- qplot(nauth, data=pdata, xlab="Number of Authors", ylab="Number of Papers",
-                geom="histogram", binwidth=0.5, main=year)
-    ggsave(filename=file.path("plots", "authors", 
-                               paste0("nauthors_", fname_suffix, ".pdf")),
-           plot=qp, width=6, height=6)
-
-
-    # number of papers for each author
-    adata <- authors %>% group_by(author) %>% summarize(npub=n())
-    qp <- qplot(npub, data=adata, xlab="Number of Papers", ylab="Number of Authors",
-                geom="histogram", binwidth=0.5, main=year)
-    ggsave(filename=file.path("plots", "authors", 
-                       paste0("npapers_", fname_suffix, ".pdf")), 
-        plot=qp, width=6, height=6)
-
+if(FALSE) {
+#     # number of authors for each paper
+#     pdata <- authors %>% group_by(id) %>% summarize(nauth=n())
+#     
+#     qp <- qplot(nauth, data=pdata, xlab="Number of Authors", ylab="Number of Papers",
+#                 geom="histogram", binwidth=0.5, main=year)
+#     ggsave(filename=file.path("plots", "authors", 
+#                                paste0("nauthors_", fname_suffix, ".pdf")),
+#            plot=qp, width=6, height=6)
+# 
+# 
+#     # number of papers for each author
+#     adata <- authors %>% group_by(author) %>% summarize(npub=n())
+#     qp <- qplot(npub, data=adata, xlab="Number of Papers", ylab="Number of Authors",
+#                 geom="histogram", binwidth=0.5, main=year)
+#     ggsave(filename=file.path("plots", "authors", 
+#                        paste0("npapers_", fname_suffix, ".pdf")), 
+#         plot=qp, width=6, height=6)
+}
     #######################
     ### co-author graph
     #
@@ -134,55 +169,29 @@ for (year in all.cases) {
     max_npub <- max(V(net)$weight)
     step_npub <- min(1.0, 7.0/(max_npub-min_npub))
 
-    pdf_fname = file.path("plots", "authors",
-                          paste0("network_", fname_suffix, ".pdf"))
-    cat("Saving to", pdf_fname, "...")
-    pdf(file=pdf_fname, width=6, height=6)
-    plot(net, 
-         vertex.label.cex=.4,
-         vertex.label=sapply(V(net)$weight, function(x) ifelse(x>1,x,"")),
-         vertex.size=3+(V(net)$weight-min_npub)*step_npub,
-         vertex.col=V(net)$type,
-         edge.curved=.2, 
-         edge.width=E(net)$weight*2,
-         edge.label=sapply(E(net)$weight, function(x) ifelse(x>1, x, "")),
-         edge.label.cex=.7,
-         main=year,
-    )
-    graphics.off()
-    cat("done\n")
+if(FALSE) {
+#     pdf_fname = file.path("plots", "authors",
+#                           paste0("network_", fname_suffix, ".pdf"))
+#     cat("Saving to", pdf_fname, "...")
+#     pdf(file=pdf_fname, width=6, height=6)
+#     plot(net, 
+#          vertex.label.cex=.4,
+#          vertex.label=sapply(V(net)$weight, function(x) ifelse(x>1,x,"")),
+#          vertex.size=3+(V(net)$weight-min_npub)*step_npub,
+#          vertex.col=V(net)$type,
+#          edge.curved=.2, 
+#          edge.width=E(net)$weight*2,
+#          edge.label=sapply(E(net)$weight, function(x) ifelse(x>1, x, "")),
+#          edge.label.cex=.7,
+#          main=year,
+#     )
+#     graphics.off()
+#     cat("done\n")
+}
 
 } 
 
-aff_colors <- c(ELS="black", 
-                CEA="red", 
-                INT="blue", 
-                FSD="green", 
-                FMD="cyan", 
-                FBD="orange", 
-                CUR="yellow", 
-                EXT="grey")
-
-plot_net <- function(net, ...) {
-    min_npub <- min(V(net)$weight)
-    max_npub <- max(V(net)$weight)
-    step_npub <- min(1.0, 7.0/(max_npub-min_npub))
-
-    plot(net,
-         vertex.label.cex=.8,
-         vertex.label=sapply(V(net)$weight, function(x) ifelse(x>1,x,"")),
-         vertex.shape=ifelse(V(net)$type==0, "none", "circle"),
-         vertex.size=(6+(V(net)$weight-min_npub)*step_npub),
-         vertex.color=ifelse(V(net)$type>0, aff_colors[V(net)$type], "white"),
-         edge.curved=.2,
-         edge.width=E(net)$weight*3*E(net)$type,
-         edge.label=sapply(E(net)$weight, function(x) ifelse(x>1, x, "")),
-         edge.label.cex=.7,
-         main=year, 
-         ...)
-}
-
-plot_net(net, layout=layout_(net, with_graphopt(charge=.05, spring.constant=10, niter=5000)))
-
+# plot_net(net, layout=layout_(net, with_graphopt(charge=.05, spring.constant=10, niter=5000)))
+# 
 
 

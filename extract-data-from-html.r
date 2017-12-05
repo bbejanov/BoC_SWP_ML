@@ -116,10 +116,10 @@ parse_affil <- function(row, kind, authors, pdftext) {
         row$language <- "English"
         affils <- c("BoC Funds Management and Banking Department",
                     "University of Bern") 
-    } else if (kind=="swp" && row$id == "2016-2") {
-        row$language <- "English"
-        affils <- c("McMaster University",
-                    "BoC Canadian Economic Analysis Department") 
+#     } else if (kind=="swp" && row$id == "2016-2") {
+#         row$language <- "English"
+#         affils <- c("McMaster University",
+#                     "BoC Canadian Economic Analysis Department") 
     } else if (kind=="swp" && row$id == "2012-17") {
         row$language <- "English"
         affils <- paste("BoC", "Funds Management and Banking Department")
@@ -200,6 +200,7 @@ parse_affil <- function(row, kind, authors, pdftext) {
             affils <- lapply(affils, function(a) a[nchar(a)>0])
             laffils <- sapply(affils, length)
             if(all(laffils[-num]==1) && laffils[[num]] > 1 
+               && all(grepl("department", affils[-num], ignore.case=TRUE))
                && affils[[num]][[2]] == BoCE) {
                 row$language <- "English"
                 affils <- lapply(affils, function(a) paste("BoC", a[[1]]))
@@ -275,8 +276,7 @@ if(FALSE) {
         foo <- get_affil(parse_row(file.path("data", kind, fn)),kind)
 }
 
-
-#if(FALSE)
+# if(FALSE)
 # for (kind in c("swp", "san", "sdp")) {
 for (kind in c("swp")) {
     cat("Parsing", kind, "...")
