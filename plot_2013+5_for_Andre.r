@@ -3,7 +3,7 @@ library(dplyr)
 
 #============================================================================
 year <- "2013|2014|2015|2016|2017"
-pngfile <- "plots/net_2013_2017.png"
+pngfile <- NULL # "plots/net_2013_2017.png"
 source("authors.r")
 
 starting_points <- function(net, affil.levels=levels(authors$affil)) {
